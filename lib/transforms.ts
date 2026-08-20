@@ -9,7 +9,8 @@ export type TransformType =
   | "radial_warp"
   | "domain_warp"
   | "spiral"
-  | "gallery";
+  | "gallery"
+  | "anchor_diverge";
 
 export interface TransformConfig {
   type: TransformType;
@@ -207,6 +208,92 @@ export function escherGallery(
   return result;
 }
 
+function curveCentroid(points: Point[]): Point {
+  if (points.length === 0) return [0, 0];
+  let sx = 0;
+  let sy = 0;
+  for (const [x, y] of points) {
+    sx += x;
+    sy += y;
+  }
+  return [sx / points.length, sy / points.length];
+}
+
+/**
+ * Relative free space at a position: origin has the most room,
+ * points near edges/corners have less — drives curve length.
+ */
+export function computeSpaceAt(ax: number, ay: number, spread = 1): number {
+  const distOrigin = Math.hypot(ax, ay);
+  const originFactor = 1 / (1 + distOrigin * 0.85);
+
+  const bound = 1.1 * spread;
+  const edgeDist = Math.min(bound - Math.abs(ax), bound - Math.abs(ay));
+  const edgeFactor = Math.max(0.15, Math.min(1, edgeDist / bound));
+
+  return originFactor * edgeFactor;
+}
+
+function generateAnchors(count: number, seed: number, spread: number): Point[] {
+  const rng = seededRandom(seed);
+  const anchors: Point[] = [[0, 0]];
+
+  for (let i = 1; i < count; i++) {
+    let attempts = 0;
+    while (attempts < 20) {
+      const px = (rng() - 0.5) * 1.8 * spread;
+      const py = (rng() - 0.5) * 1.8 * spread;
+      const tooClose = anchors.some(
+        ([ax, ay]) => Math.hypot(px - ax, py - ay) < 0.25 * spread
+      );
+      if (!tooClose) {
+        anchors.push([px, py]);
+        break;
+      }
+      attempts++;
+    }
+    if (anchors.length <= i) {
+      anchors.push([(rng() - 0.5) * 1.8 * spread, (rng() - 0.5) * 1.8 * spread]);
+    }
+  }
+
+  return anchors;
+}
+
+/**
+ * Random anchor points; from each, diverge several function curves.
+ * Curve length scales with available space at that anchor (origin = longest).
+ */
+export function anchorDiverge(
+  points: Point[],
+  anchorCount: number,
+  raysPerAnchor: number,
+  seed: number,
+  spread = 1
+): Point[][] {
+  const rng = seededRandom(seed + 7);
+  const centroid = curveCentroid(points);
+  const centered = translatePoints(points, -centroid[0], -centroid[1]);
+  const anchors = generateAnchors(anchorCount, seed, spread);
+  const result: Point[][] = [];
+
+  for (const [ax, ay] of anchors) {
+    const space = computeSpaceAt(ax, ay, spread);
+    const lengthScale = (0.15 + space * 1.1) * spread;
+    const rayCount = Math.max(2, raysPerAnchor + Math.floor(space * 2));
+
+    for (let r = 0; r < rayCount; r++) {
+      const angle = (360 / rayCount) * r + (rng() - 0.5) * 10;
+      let copy = scalePoints(centered, lengthScale, [0, 0]);
+      copy = rotatePointsAround(copy, angle, [0, 0]);
+      copy = translatePoints(copy, ax, ay);
+      result.push(copy);
+    }
+  }
+
+  return result;
+}
+
 export function radialWarp(
   points: Point[],
   center: [number, number] = [0, 0]
@@ -240,6 +327,14 @@ export function applyTransform(
   const spread = config.spread ?? 1;
 
   switch (config.type) {
+    case "anchor_diverge":
+      return anchorDiverge(
+        points,
+        config.segments ?? 4,
+        config.overlayCount ?? 4,
+        seed,
+        spread
+      );
     case "gallery":
       return escherGallery(points, config.segments ?? 10, seed, spread);
     case "mirror_h":
@@ -267,6 +362,7 @@ export function applyTransform(
 export function getTransformLabel(type: TransformType): string {
   const labels: Record<TransformType, string> = {
     none: "仅单线",
+    anchor_diverge: "锚点发散",
     gallery: "Escher 画廊",
     mirror_h: "原曲线 + 水平镜像",
     mirror_v: "原曲线 + 垂直镜像",
@@ -282,6 +378,7 @@ export function getTransformLabel(type: TransformType): string {
 }
 
 export const TRANSFORM_OPTIONS: TransformType[] = [
+  "anchor_diverge",
   "gallery",
   "kaleidoscope",
   "rotate",

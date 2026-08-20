@@ -12,6 +12,7 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
   const showRepeatCount = state.transform === "rotate";
   const showSegments =
     state.transform === "kaleidoscope" || state.transform === "gallery";
+  const showAnchorDiverge = state.transform === "anchor_diverge";
   const showGallery = state.transform === "gallery";
   const showOverlay = state.transform === "multi_overlay";
   const showWarp = state.transform === "domain_warp";
@@ -53,6 +54,57 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
         <p className="text-xs text-zinc-500 leading-relaxed">
           Escher 画廊：曲线副本沿螺旋散布，各自缩放旋转、偏离原点，营造《版画画廊》式的递归错位感。
         </p>
+      )}
+
+      {showAnchorDiverge && (
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          随机生成锚点，每个点发散多条函数曲线。距原点越近、空间越大，曲线越长；边缘锚点曲线更短。
+        </p>
+      )}
+
+      {showAnchorDiverge && (
+        <>
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">
+              锚点数量: {state.segments}
+            </label>
+            <input
+              type="range"
+              min={2}
+              max={8}
+              value={state.segments}
+              onChange={(e) => onChange({ segments: parseInt(e.target.value, 10) })}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">
+              每点发散数: {state.overlayCount}
+            </label>
+            <input
+              type="range"
+              min={2}
+              max={8}
+              value={state.overlayCount}
+              onChange={(e) => onChange({ overlayCount: parseInt(e.target.value, 10) })}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">
+              散布范围: {state.spread.toFixed(1)}
+            </label>
+            <input
+              type="range"
+              min={0.5}
+              max={2}
+              step={0.1}
+              value={state.spread}
+              onChange={(e) => onChange({ spread: parseFloat(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+        </>
       )}
 
       {showRepeatCount && (
@@ -104,7 +156,7 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
         </div>
       )}
 
-      {(showGallery || showRepeatCount || state.transform === "kaleidoscope") && (
+      {(showGallery || showAnchorDiverge || showRepeatCount || state.transform === "kaleidoscope") && (
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-sm text-zinc-400">随机种子: {state.seed}</label>
