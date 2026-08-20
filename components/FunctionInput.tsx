@@ -1,6 +1,7 @@
 "use client";
 
 import { CoordinateMode, PRESETS } from "@/lib/math-parser";
+import { generateRandomEverything, generateRandomFunction } from "@/lib/random-function";
 import { AppState } from "@/lib/app-state";
 
 interface FunctionInputProps {
@@ -16,6 +17,31 @@ const MODES: { value: CoordinateMode; label: string }[] = [
 ];
 
 export default function FunctionInput({ state, onChange, error }: FunctionInputProps) {
+  const handleRandomFunction = () => {
+    const result = generateRandomFunction(state.mode, Math.floor(Math.random() * 1_000_000));
+    onChange({
+      expr: result.expr,
+      exprX: result.exprX,
+      exprY: result.exprY,
+      tMin: result.tMin,
+      tMax: result.tMax,
+      seed: result.seed,
+    });
+  };
+
+  const handleRandomAll = () => {
+    const result = generateRandomEverything();
+    onChange({
+      mode: result.mode,
+      expr: result.expr,
+      exprX: result.exprX,
+      exprY: result.exprY,
+      tMin: result.tMin,
+      tMax: result.tMax,
+      seed: result.seed,
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -117,6 +143,29 @@ export default function FunctionInput({ state, onChange, error }: FunctionInputP
           {error}
         </div>
       )}
+
+      <div>
+        <label className="block text-sm text-zinc-400 mb-2">随机探索</label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleRandomFunction}
+            className="px-3 py-1.5 rounded-lg text-sm bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+          >
+            随机函数
+          </button>
+          <button
+            type="button"
+            onClick={handleRandomAll}
+            className="px-3 py-1.5 rounded-lg text-sm bg-violet-700 text-white hover:bg-violet-600 transition-colors"
+          >
+            随机全部（模式+函数+布局）
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500 mt-1.5">
+          自动生成 sin/cos 组合、玫瑰线、Lissajous 等随机表达式，不必只用预设模板
+        </p>
+      </div>
 
       <div>
         <label className="block text-sm text-zinc-400 mb-2">预设模板</label>
