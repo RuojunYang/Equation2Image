@@ -46,7 +46,7 @@ export function toFunctionConfig(state: AppState): FunctionConfig {
     variable: state.mode === "parametric" ? "t" : state.mode === "polar" ? "theta" : "x",
     tMin: state.tMin,
     tMax: state.tMax,
-    sampleCount: 800,
+    sampleCount: 250,
   };
 }
 

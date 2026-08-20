@@ -17,14 +17,16 @@ export default function CanvasPreview({
   onSketchReady,
 }: CanvasPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const onSketchReadyRef = useRef(onSketchReady);
+  onSketchReadyRef.current = onSketchReady;
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     renderCurves(canvas, curves, transform);
-    onSketchReady?.(canvas.toDataURL("image/png"));
-  }, [curves, transform, onSketchReady]);
+    onSketchReadyRef.current?.(canvas.toDataURL("image/png"));
+  }, [curves, transform]);
 
   return (
     <div className="space-y-4">

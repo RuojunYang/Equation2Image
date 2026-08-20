@@ -1,39 +1,17 @@
 type Point = [number, number];
 
 export const ANCHOR_EXCLUSION_RADIUS = 0.12;
+const COLLISION_MAX_POINTS = 64;
 
-function orient(
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  cx: number,
-  cy: number
-): number {
-  return (cy - ay) * (bx - ax) - (cx - ax) * (by - ay);
-}
-
-function onSegment(px: number, py: number, qx: number, qy: number, rx: number, ry: number): boolean {
-  return (
-    Math.min(px, qx) <= rx &&
-    rx <= Math.max(px, qx) &&
-    Math.min(py, qy) <= ry &&
-    ry <= Math.max(py, qy)
-  );
-}
-
-function segmentsIntersect(a1: Point, a2: Point, b1: Point, b2: Point): boolean {
-  const o1 = orient(a1[0], a1[1], a2[0], a2[1], b1[0], b1[1]);
-  const o2 = orient(a1[0], a1[1], a2[0], a2[1], b2[0], b2[1]);
-  const o3 = orient(b1[0], b1[1], b2[0], b2[1], a1[0], a1[1]);
-  const o4 = orient(b1[0], b1[1], b2[0], b2[1], a2[0], a2[1]);
-
-  if (o1 !== o2 && o3 !== o4) return true;
-  if (o1 === 0 && onSegment(a1[0], a1[1], a2[0], a2[1], b1[0], b1[1])) return true;
-  if (o2 === 0 && onSegment(a1[0], a1[1], a2[0], a2[1], b2[0], b2[1])) return true;
-  if (o3 === 0 && onSegment(b1[0], b1[1], b2[0], b2[1], a1[0], a1[1])) return true;
-  if (o4 === 0 && onSegment(b1[0], b1[1], b2[0], b2[1], a2[0], a2[1])) return true;
-  return false;
+/** Reduce point count for fast collision checks (drawing stays smooth). */
+export function decimatePoints(points: Point[], maxPoints = COLLISION_MAX_POINTS): Point[] {
+  if (points.length <= maxPoints) return points;
+  const result: Point[] = [];
+  const step = (points.length - 1) / (maxPoints - 1);
+  for (let i = 0; i < maxPoints; i++) {
+    result.push(points[Math.round(i * step)]);
+  }
+  return result;
 }
 
 /** Return exact intersection point of two segments, or null. */
@@ -71,17 +49,22 @@ function segmentNearAnyAnchor(
 ): boolean {
   const mx = (p1[0] + p2[0]) / 2;
   const my = (p1[1] + p2[1]) / 2;
-  return anchors.some(
-    ([ax, ay]) =>
+  for (let k = 0; k < anchors.length; k++) {
+    const [ax, ay] = anchors[k];
+    if (
       nearAnchor(p1[0], p1[1], [ax, ay], radius) ||
       nearAnchor(p2[0], p2[1], [ax, ay], radius) ||
       nearAnchor(mx, my, [ax, ay], radius)
-  );
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
- * Like drawing with a pen: walk along the curve and stop at the first
- * intersection with any already-drawn curve (excluding segments near hubs).
+ * Walk along the curve and stop at the first intersection with any
+ * already-drawn curve (excluding segments near hubs).
  */
 export function trimCurveAtFirstCrossing(
   candidate: Point[],
@@ -91,18 +74,24 @@ export function trimCurveAtFirstCrossing(
 ): Point[] {
   if (candidate.length < 2 || existing.length === 0) return candidate;
 
+  const sparse = decimatePoints(candidate);
+  const existingSparse = existing.map((c) => decimatePoints(c));
+
   let earliestParam = Infinity;
   let cutSegmentIndex = -1;
-  let cutPoint: Point | null = null;
+  let cutT = 0;
 
-  for (let i = 0; i < candidate.length - 1; i++) {
-    const a1 = candidate[i];
-    const a2 = candidate[i + 1];
+  for (let i = 0; i < sparse.length - 1; i++) {
+    if (earliestParam < i) break;
+
+    const a1 = sparse[i];
+    const a2 = sparse[i + 1];
     const segLen = Math.hypot(a2[0] - a1[0], a2[1] - a1[1]) || 1;
 
     if (segmentNearAnyAnchor(a1, a2, hubs, exclusionRadius)) continue;
 
-    for (const other of existing) {
+    for (let e = 0; e < existingSparse.length; e++) {
+      const other = existingSparse[e];
       for (let j = 0; j < other.length - 1; j++) {
         const b1 = other[j];
         const b2 = other[j + 1];
@@ -118,15 +107,41 @@ export function trimCurveAtFirstCrossing(
         if (param < earliestParam) {
           earliestParam = param;
           cutSegmentIndex = i;
-          cutPoint = pt;
+          cutT = tOnSeg;
         }
       }
     }
   }
 
-  if (!cutPoint || cutSegmentIndex < 0) return candidate;
+  if (cutSegmentIndex < 0 || !Number.isFinite(earliestParam)) return candidate;
 
-  const trimmed = candidate.slice(0, cutSegmentIndex + 1);
+  return trimFullCurveAtSparseParam(candidate, sparse, cutSegmentIndex, cutT);
+}
+
+function trimFullCurveAtSparseParam(
+  full: Point[],
+  sparse: Point[],
+  cutSegmentIndex: number,
+  cutT: number
+): Point[] {
+  const a1 = sparse[cutSegmentIndex];
+  const a2 = sparse[cutSegmentIndex + 1];
+  const cutPoint: Point = [
+    a1[0] + cutT * (a2[0] - a1[0]),
+    a1[1] + cutT * (a2[1] - a1[1]),
+  ];
+
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < full.length; i++) {
+    const d = Math.hypot(full[i][0] - cutPoint[0], full[i][1] - cutPoint[1]);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+
+  const trimmed = full.slice(0, bestIdx + 1);
   trimmed.push(cutPoint);
   return trimmed;
 }
@@ -148,7 +163,8 @@ export function trimCurvesLikeDrawing(
   const drawn: Point[][] = [];
   const hubs: Point[] = [];
 
-  for (const curve of curves) {
+  for (let c = 0; c < curves.length; c++) {
+    const curve = curves[c];
     if (curve.length < 2) continue;
 
     const trimmed = trimCurveAtFirstCrossing(curve, drawn, hubs, exclusionRadius);
