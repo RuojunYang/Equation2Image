@@ -13,6 +13,8 @@ export interface AppState {
   segments: number;
   overlayCount: number;
   warpStrength: number;
+  seed: number;
+  spread: number;
   prompt: string;
 }
 
@@ -23,12 +25,14 @@ export const DEFAULT_STATE: AppState = {
   exprY: "sin(4*t)",
   tMin: -6.28,
   tMax: 6.28,
-  transform: "kaleidoscope",
+  transform: "gallery",
   angle: 45,
-  segments: 6,
+  segments: 10,
   overlayCount: 3,
   warpStrength: 1,
-  prompt: "watercolor painting, soft colors, artistic illustration",
+  seed: 42,
+  spread: 1,
+  prompt: "M.C. Escher style, Print Gallery, recursive perspective, lithograph, dizzying architecture",
 };
 
 export function toFunctionConfig(state: AppState): FunctionConfig {
@@ -51,6 +55,8 @@ export function toTransformConfig(state: AppState): TransformConfig {
     segments: state.segments,
     overlayCount: state.overlayCount,
     warpStrength: state.warpStrength,
+    seed: state.seed,
+    spread: state.spread,
   };
 }
 
@@ -97,6 +103,8 @@ export function encodeStateToUrl(state: AppState): string {
   params.set("segments", String(state.segments));
   params.set("overlay", String(state.overlayCount));
   params.set("warp", String(state.warpStrength));
+  params.set("seed", String(state.seed));
+  params.set("spread", String(state.spread));
   if (state.prompt) params.set("prompt", state.prompt);
   return params.toString();
 }
@@ -119,6 +127,8 @@ export function decodeStateFromUrl(search: string): Partial<AppState> {
   if (params.has("segments")) partial.segments = parseInt(params.get("segments")!, 10);
   if (params.has("overlay")) partial.overlayCount = parseInt(params.get("overlay")!, 10);
   if (params.has("warp")) partial.warpStrength = parseFloat(params.get("warp")!);
+  if (params.has("seed")) partial.seed = parseInt(params.get("seed")!, 10);
+  if (params.has("spread")) partial.spread = parseFloat(params.get("spread")!);
   if (params.has("prompt")) partial.prompt = params.get("prompt")!;
 
   return partial;

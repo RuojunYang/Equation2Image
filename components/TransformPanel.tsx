@@ -10,16 +10,22 @@ interface TransformPanelProps {
 
 export default function TransformPanel({ state, onChange }: TransformPanelProps) {
   const showRepeatCount = state.transform === "rotate";
-  const showSegments = state.transform === "kaleidoscope";
+  const showSegments =
+    state.transform === "kaleidoscope" || state.transform === "gallery";
+  const showGallery = state.transform === "gallery";
   const showOverlay = state.transform === "multi_overlay";
   const showWarp = state.transform === "domain_warp";
+
+  const handleRandomize = () => {
+    onChange({ seed: Math.floor(Math.random() * 100000) });
+  };
 
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-zinc-100">变换控制</h2>
         <p className="text-sm text-zinc-400 mt-1">
-          同一函数通过变换叠加成完整图案，所有线条均来自 f(x)
+          同一函数通过变换叠加成完整图案，位置与尺度可偏移（非原点对称）
         </p>
       </div>
 
@@ -43,6 +49,12 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
         </div>
       </div>
 
+      {showGallery && (
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          Escher 画廊：曲线副本沿螺旋散布，各自缩放旋转、偏离原点，营造《版画画廊》式的递归错位感。
+        </p>
+      )}
+
       {showRepeatCount && (
         <div>
           <label className="block text-sm text-zinc-400 mb-1">
@@ -62,14 +74,54 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
       {showSegments && (
         <div>
           <label className="block text-sm text-zinc-400 mb-1">
-            对称扇数: {state.segments}
+            {showGallery ? "副本数量" : "对称扇数"}: {state.segments}
           </label>
           <input
             type="range"
-            min={2}
-            max={12}
+            min={showGallery ? 5 : 2}
+            max={showGallery ? 18 : 12}
             value={state.segments}
             onChange={(e) => onChange({ segments: parseInt(e.target.value, 10) })}
+            className="w-full"
+          />
+        </div>
+      )}
+
+      {showGallery && (
+        <div>
+          <label className="block text-sm text-zinc-400 mb-1">
+            散布范围: {state.spread.toFixed(1)}
+          </label>
+          <input
+            type="range"
+            min={0.5}
+            max={2}
+            step={0.1}
+            value={state.spread}
+            onChange={(e) => onChange({ spread: parseFloat(e.target.value) })}
+            className="w-full"
+          />
+        </div>
+      )}
+
+      {(showGallery || showRepeatCount || state.transform === "kaleidoscope") && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-sm text-zinc-400">随机种子: {state.seed}</label>
+            <button
+              type="button"
+              onClick={handleRandomize}
+              className="px-2 py-0.5 rounded text-xs bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
+            >
+              重新随机
+            </button>
+          </div>
+          <input
+            type="range"
+            min={1}
+            max={99999}
+            value={state.seed}
+            onChange={(e) => onChange({ seed: parseInt(e.target.value, 10) })}
             className="w-full"
           />
         </div>
