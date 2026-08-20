@@ -10,6 +10,24 @@ export interface RenderOptions {
   lineWidth?: number;
 }
 
+function isPointGroupArray(value: Point[] | Point[][]): value is Point[][] {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  const first = value[0];
+  // Point[]: first = [x, y] → first[0] is number
+  // Point[][]: first = [[x,y], ...] → first[0] is array
+  return Array.isArray(first) && Array.isArray(first[0]);
+}
+
+function filterValidPoints(points: Point[]): Point[] {
+  return points.filter(
+    (p) =>
+      Array.isArray(p) &&
+      p.length >= 2 &&
+      Number.isFinite(p[0]) &&
+      Number.isFinite(p[1])
+  );
+}
+
 function normalizePoints(allPoints: Point[]): {
   normalized: Point[];
   bounds: { minX: number; maxX: number; minY: number; maxY: number };
@@ -21,12 +39,20 @@ function normalizePoints(allPoints: Point[]): {
     };
   }
 
+  const validPoints = filterValidPoints(allPoints);
+  if (validPoints.length === 0) {
+    return {
+      normalized: [],
+      bounds: { minX: -1, maxX: 1, minY: -1, maxY: 1 },
+    };
+  }
+
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
 
-  for (const [x, y] of allPoints) {
+  for (const [x, y] of validPoints) {
     minX = Math.min(minX, x);
     maxX = Math.max(maxX, x);
     minY = Math.min(minY, y);
@@ -39,7 +65,7 @@ function normalizePoints(allPoints: Point[]): {
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
 
-  const normalized = allPoints.map(([x, y]) => [
+  const normalized = validPoints.map(([x, y]) => [
     (x - cx) * scale,
     (y - cy) * scale,
   ] as Point);
@@ -106,8 +132,10 @@ export function renderCurves(
 
     const transformed = applyTransform(rawPoints, transform);
 
-    if (Array.isArray(transformed[0])) {
-      const groups = transformed as Point[][];
+    if (isPointGroupArray(transformed)) {
+      const groups = transformed.map(filterValidPoints).filter((g) => g.length > 0);
+      if (groups.length === 0) continue;
+
       const flat = groups.flat();
       const { bounds } = normalizePoints(flat);
 
@@ -125,7 +153,7 @@ export function renderCurves(
         drawPath(ctx, normGroup, size);
       }
     } else {
-      const { normalized } = normalizePoints(transformed as Point[]);
+      const { normalized } = normalizePoints(filterValidPoints(transformed));
       drawPath(ctx, normalized, size);
     }
   }
