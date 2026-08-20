@@ -1,5 +1,3 @@
-import { ANCHOR_EXCLUSION_RADIUS, crossesExisting } from "./curve-collision";
-
 export type TransformType =
   | "none"
   | "mirror_h"
@@ -378,7 +376,7 @@ function crowdFactor(
 /**
  * Random anchor points; from each, diverge several function curves.
  * Curve length scales with available space at that anchor (origin = longest).
- * Rays are sector-limited and crossing curves are rejected.
+ * Rays are sector-limited; crossing segments are trimmed at render time.
  */
 export function anchorDiverge(
   points: Point[],
@@ -412,22 +410,7 @@ export function anchorDiverge(
       let copy = scalePoints(centered, lengthScale, [0, 0]);
       copy = rotatePointsAround(copy, angle, [0, 0]);
       copy = translatePoints(copy, ax, ay);
-
-      if (!crossesExisting(copy, result, anchors, ANCHOR_EXCLUSION_RADIUS * spread)) {
-        result.push(copy);
-        continue;
-      }
-
-      // Retry shorter to fit without crossing
-      const shorter = scalePoints(centered, lengthScale * 0.55, [0, 0]);
-      const shorterRot = translatePoints(
-        rotatePointsAround(shorter, angle, [0, 0]),
-        ax,
-        ay
-      );
-      if (!crossesExisting(shorterRot, result, anchors, ANCHOR_EXCLUSION_RADIUS * spread)) {
-        result.push(shorterRot);
-      }
+      result.push(copy);
     }
   });
 

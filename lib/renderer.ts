@@ -1,4 +1,5 @@
 import { applyTransform, Point, TransformConfig } from "./transforms";
+import { trimCurvesLikeDrawing } from "./curve-collision";
 
 export const CANVAS_SIZE = 512;
 const LINE_WIDTH = 2.5;
@@ -102,7 +103,11 @@ export function renderCurves(
 
   if (allGroups.length === 0) return;
 
-  const flat = allGroups.flat();
+  const trimmedGroups = trimCurvesLikeDrawing(allGroups);
+
+  if (trimmedGroups.length === 0) return;
+
+  const flat = trimmedGroups.flat();
   const bounds = computeBounds(flat);
   const rangeX = bounds.maxX - bounds.minX || 1;
   const rangeY = bounds.maxY - bounds.minY || 1;
@@ -110,7 +115,7 @@ export function renderCurves(
   const cx = (bounds.minX + bounds.maxX) / 2;
   const cy = (bounds.minY + bounds.maxY) / 2;
 
-  for (const group of allGroups) {
+  for (const group of trimmedGroups) {
     const normGroup = group.map(([x, y]) => [
       (x - cx) * scale,
       (y - cy) * scale,
