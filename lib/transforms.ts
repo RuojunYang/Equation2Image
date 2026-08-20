@@ -1,3 +1,5 @@
+import { ANCHOR_EXCLUSION_RADIUS, crossesExisting } from "./curve-collision";
+
 export type TransformType =
   | "none"
   | "mirror_h"
@@ -290,9 +292,93 @@ function generateAnchors(
   return anchors;
 }
 
+function spreadAngles(centerDeg: number, sectorDeg: number, count: number): number[] {
+  if (count <= 1) return [centerDeg];
+  const start = centerDeg - sectorDeg / 2;
+  const step = sectorDeg / (count - 1);
+  return Array.from({ length: count }, (_, i) => start + step * i);
+}
+
+function nearestNeighborAngle(
+  ax: number,
+  ay: number,
+  anchors: Point[],
+  selfIndex: number
+): { minDist: number; angleDeg: number } {
+  let minDist = Infinity;
+  let angleDeg = 0;
+
+  for (let i = 0; i < anchors.length; i++) {
+    if (i === selfIndex) continue;
+    const [ox, oy] = anchors[i];
+    const d = Math.hypot(ax - ox, ay - oy);
+    if (d < minDist) {
+      minDist = d;
+      angleDeg = (Math.atan2(oy - ay, ox - ax) * 180) / Math.PI;
+    }
+  }
+
+  return { minDist, angleDeg };
+}
+
+/** Assign ray angles in non-overlapping sectors, pointing away from neighbors. */
+function computeRayAngles(
+  ax: number,
+  ay: number,
+  anchorIndex: number,
+  anchors: Point[],
+  rayCount: number,
+  spread: number,
+  minSpacing: number
+): number[] {
+  const isOrigin = Math.hypot(ax, ay) < 0.01;
+
+  if (isOrigin && anchors.length > 1) {
+    const angles = anchors
+      .filter((_, i) => i !== anchorIndex)
+      .map(([x, y]) => Math.atan2(y, x))
+      .sort((a, b) => a - b);
+
+    let maxGap = 0;
+    let gapMid = 0;
+    for (let i = 0; i < angles.length; i++) {
+      const cur = angles[i];
+      const next = angles[(i + 1) % angles.length];
+      const gap = i === angles.length - 1 ? next + 2 * Math.PI - cur : next - cur;
+      if (gap > maxGap) {
+        maxGap = gap;
+        gapMid = cur + gap / 2;
+      }
+    }
+    const sectorDeg = Math.min((maxGap * 180) / Math.PI * 0.8, 150);
+    const centerDeg = (gapMid * 180) / Math.PI;
+    return spreadAngles(centerDeg, sectorDeg, rayCount);
+  }
+
+  const { minDist, angleDeg } = nearestNeighborAngle(ax, ay, anchors, anchorIndex);
+  const outward = angleDeg + 180;
+  const spacing = minSpacing * spread;
+  const sectorDeg = Math.min(100, Math.max(35, (minDist / spacing) * 55));
+  return spreadAngles(outward, sectorDeg, rayCount);
+}
+
+function crowdFactor(
+  ax: number,
+  ay: number,
+  anchorIndex: number,
+  anchors: Point[],
+  minSpacing: number,
+  spread: number
+): number {
+  const { minDist } = nearestNeighborAngle(ax, ay, anchors, anchorIndex);
+  if (!Number.isFinite(minDist) || minDist === Infinity) return 1;
+  return Math.max(0.35, Math.min(1, minDist / (minSpacing * spread * 1.4)));
+}
+
 /**
  * Random anchor points; from each, diverge several function curves.
  * Curve length scales with available space at that anchor (origin = longest).
+ * Rays are sector-limited and crossing curves are rejected.
  */
 export function anchorDiverge(
   points: Point[],
@@ -302,25 +388,48 @@ export function anchorDiverge(
   spread = 1,
   minAnchorSpacing = 0.5
 ): Point[][] {
-  const rng = seededRandom(seed + 7);
   const centroid = curveCentroid(points);
   const centered = translatePoints(points, -centroid[0], -centroid[1]);
   const anchors = generateAnchors(anchorCount, seed, spread, minAnchorSpacing);
   const result: Point[][] = [];
 
-  for (const [ax, ay] of anchors) {
+  anchors.forEach(([ax, ay], anchorIndex) => {
     const space = computeSpaceAt(ax, ay, spread);
-    const lengthScale = (0.15 + space * 1.1) * spread;
-    const rayCount = Math.max(2, raysPerAnchor + Math.floor(space * 2));
+    const crowd = crowdFactor(ax, ay, anchorIndex, anchors, minAnchorSpacing, spread);
+    const lengthScale = (0.15 + space * 1.1) * spread * crowd;
+    const rayCount = Math.max(1, Math.min(raysPerAnchor, Math.ceil(raysPerAnchor * crowd)));
+    const angles = computeRayAngles(
+      ax,
+      ay,
+      anchorIndex,
+      anchors,
+      rayCount,
+      spread,
+      minAnchorSpacing
+    );
 
-    for (let r = 0; r < rayCount; r++) {
-      const angle = (360 / rayCount) * r + (rng() - 0.5) * 10;
+    for (const angle of angles) {
       let copy = scalePoints(centered, lengthScale, [0, 0]);
       copy = rotatePointsAround(copy, angle, [0, 0]);
       copy = translatePoints(copy, ax, ay);
-      result.push(copy);
+
+      if (!crossesExisting(copy, result, anchors, ANCHOR_EXCLUSION_RADIUS * spread)) {
+        result.push(copy);
+        continue;
+      }
+
+      // Retry shorter to fit without crossing
+      const shorter = scalePoints(centered, lengthScale * 0.55, [0, 0]);
+      const shorterRot = translatePoints(
+        rotatePointsAround(shorter, angle, [0, 0]),
+        ax,
+        ay
+      );
+      if (!crossesExisting(shorterRot, result, anchors, ANCHOR_EXCLUSION_RADIUS * spread)) {
+        result.push(shorterRot);
+      }
     }
-  }
+  });
 
   return result;
 }

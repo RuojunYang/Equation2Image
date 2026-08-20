@@ -58,7 +58,7 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
 
       {showAnchorDiverge && (
         <p className="text-xs text-zinc-500 leading-relaxed">
-          随机生成锚点，每个点发散多条函数曲线。距原点越近、空间越大，曲线越长；边缘锚点曲线更短。
+          随机生成锚点，每个点在其扇区内发散曲线；自动检测并跳过交叉重叠的线段。
         </p>
       )}
 
