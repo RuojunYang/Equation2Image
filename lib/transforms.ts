@@ -21,6 +21,7 @@ export interface TransformConfig {
   center?: [number, number];
   seed?: number;
   spread?: number;
+  minAnchorSpacing?: number;
 }
 
 export type Point = [number, number];
@@ -234,27 +235,56 @@ export function computeSpaceAt(ax: number, ay: number, spread = 1): number {
   return originFactor * edgeFactor;
 }
 
-function generateAnchors(count: number, seed: number, spread: number): Point[] {
+function isAnchorTooClose(
+  px: number,
+  py: number,
+  anchors: Point[],
+  minSpacing: number
+): boolean {
+  return anchors.some(([ax, ay]) => Math.hypot(px - ax, py - ay) < minSpacing);
+}
+
+function generateAnchors(
+  count: number,
+  seed: number,
+  spread: number,
+  minSpacing: number
+): Point[] {
   const rng = seededRandom(seed);
   const anchors: Point[] = [[0, 0]];
+  const effectiveMin = minSpacing * spread;
+  const bounds = 0.9 * spread;
+  const maxAttempts = 120;
 
   for (let i = 1; i < count; i++) {
-    let attempts = 0;
-    while (attempts < 20) {
-      const px = (rng() - 0.5) * 1.8 * spread;
-      const py = (rng() - 0.5) * 1.8 * spread;
-      const tooClose = anchors.some(
-        ([ax, ay]) => Math.hypot(px - ax, py - ay) < 0.25 * spread
-      );
-      if (!tooClose) {
+    let placed = false;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const px = (rng() - 0.5) * 2 * bounds;
+      const py = (rng() - 0.5) * 2 * bounds;
+
+      if (!isAnchorTooClose(px, py, anchors, effectiveMin)) {
         anchors.push([px, py]);
+        placed = true;
         break;
       }
-      attempts++;
     }
-    if (anchors.length <= i) {
-      anchors.push([(rng() - 0.5) * 1.8 * spread, (rng() - 0.5) * 1.8 * spread]);
+
+    if (!placed) {
+      // Relax spacing slightly on repeated failure, but never below 60% of target
+      const relaxedMin = effectiveMin * 0.6;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const px = (rng() - 0.5) * 2 * bounds;
+        const py = (rng() - 0.5) * 2 * bounds;
+        if (!isAnchorTooClose(px, py, anchors, relaxedMin)) {
+          anchors.push([px, py]);
+          placed = true;
+          break;
+        }
+      }
     }
+
+    // Skip anchor if no valid position — better than overlapping
   }
 
   return anchors;
@@ -269,12 +299,13 @@ export function anchorDiverge(
   anchorCount: number,
   raysPerAnchor: number,
   seed: number,
-  spread = 1
+  spread = 1,
+  minAnchorSpacing = 0.5
 ): Point[][] {
   const rng = seededRandom(seed + 7);
   const centroid = curveCentroid(points);
   const centered = translatePoints(points, -centroid[0], -centroid[1]);
-  const anchors = generateAnchors(anchorCount, seed, spread);
+  const anchors = generateAnchors(anchorCount, seed, spread, minAnchorSpacing);
   const result: Point[][] = [];
 
   for (const [ax, ay] of anchors) {
@@ -333,7 +364,8 @@ export function applyTransform(
         config.segments ?? 4,
         config.overlayCount ?? 4,
         seed,
-        spread
+        spread,
+        config.minAnchorSpacing ?? 0.5
       );
     case "gallery":
       return escherGallery(points, config.segments ?? 10, seed, spread);

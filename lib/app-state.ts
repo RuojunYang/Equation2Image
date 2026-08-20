@@ -15,6 +15,7 @@ export interface AppState {
   warpStrength: number;
   seed: number;
   spread: number;
+  minAnchorSpacing: number;
   prompt: string;
 }
 
@@ -32,6 +33,7 @@ export const DEFAULT_STATE: AppState = {
   warpStrength: 1,
   seed: 42,
   spread: 1,
+  minAnchorSpacing: 0.5,
   prompt: "M.C. Escher style, Print Gallery, recursive perspective, lithograph, dizzying architecture",
 };
 
@@ -57,6 +59,7 @@ export function toTransformConfig(state: AppState): TransformConfig {
     warpStrength: state.warpStrength,
     seed: state.seed,
     spread: state.spread,
+    minAnchorSpacing: state.minAnchorSpacing,
   };
 }
 
@@ -105,6 +108,7 @@ export function encodeStateToUrl(state: AppState): string {
   params.set("warp", String(state.warpStrength));
   params.set("seed", String(state.seed));
   params.set("spread", String(state.spread));
+  params.set("anchorGap", String(state.minAnchorSpacing));
   if (state.prompt) params.set("prompt", state.prompt);
   return params.toString();
 }
@@ -129,6 +133,7 @@ export function decodeStateFromUrl(search: string): Partial<AppState> {
   if (params.has("warp")) partial.warpStrength = parseFloat(params.get("warp")!);
   if (params.has("seed")) partial.seed = parseInt(params.get("seed")!, 10);
   if (params.has("spread")) partial.spread = parseFloat(params.get("spread")!);
+  if (params.has("anchorGap")) partial.minAnchorSpacing = parseFloat(params.get("anchorGap")!);
   if (params.has("prompt")) partial.prompt = params.get("prompt")!;
 
   return partial;

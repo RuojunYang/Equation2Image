@@ -104,6 +104,20 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
               className="w-full"
             />
           </div>
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">
+              锚点最小间距: {state.minAnchorSpacing.toFixed(2)}
+            </label>
+            <input
+              type="range"
+              min={0.25}
+              max={1.2}
+              step={0.05}
+              value={state.minAnchorSpacing}
+              onChange={(e) => onChange({ minAnchorSpacing: parseFloat(e.target.value) })}
+              className="w-full"
+            />
+          </div>
         </>
       )}
 
