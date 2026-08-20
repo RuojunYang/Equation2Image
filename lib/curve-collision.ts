@@ -154,11 +154,52 @@ export function curveLength(points: Point[]): number {
   return len;
 }
 
+function wasCurveTrimmed(original: Point[], trimmed: Point[]): boolean {
+  if (trimmed.length < original.length - 1) return true;
+  const oEnd = original[original.length - 1];
+  const tEnd = trimmed[trimmed.length - 1];
+  return Math.hypot(oEnd[0] - tEnd[0], oEnd[1] - tEnd[1]) > 1e-5;
+}
+
+/**
+ * Scale a curve outward from its start point until it reaches the composition boundary.
+ */
+export function extendCurveToBoundary(curve: Point[], boundsHalf: number): Point[] {
+  if (curve.length < 2) return curve;
+
+  const anchor: Point = [curve[0][0], curve[0][1]];
+  let maxScale = 1;
+
+  for (let i = 1; i < curve.length; i++) {
+    const dx = curve[i][0] - anchor[0];
+    const dy = curve[i][1] - anchor[1];
+    if (Math.hypot(dx, dy) < 1e-8) continue;
+
+    let pointMax = Infinity;
+    if (dx > 1e-8) pointMax = Math.min(pointMax, (boundsHalf - anchor[0]) / dx);
+    if (dx < -1e-8) pointMax = Math.min(pointMax, (-boundsHalf - anchor[0]) / dx);
+    if (dy > 1e-8) pointMax = Math.min(pointMax, (boundsHalf - anchor[1]) / dy);
+    if (dy < -1e-8) pointMax = Math.min(pointMax, (-boundsHalf - anchor[1]) / dy);
+
+    if (Number.isFinite(pointMax) && pointMax > maxScale) {
+      maxScale = pointMax;
+    }
+  }
+
+  if (maxScale <= 1.01) return curve;
+
+  return curve.map(([x, y]) => [
+    anchor[0] + maxScale * (x - anchor[0]),
+    anchor[1] + maxScale * (y - anchor[1]),
+  ] as Point);
+}
+
 /** Sequentially trim curves like pen-on-paper drawing order. */
 export function trimCurvesLikeDrawing(
   curves: Point[][],
   exclusionRadius = ANCHOR_EXCLUSION_RADIUS,
-  minLength = 0.02
+  minLength = 0.02,
+  boundsHalf = 1.15
 ): Point[][] {
   const drawn: Point[][] = [];
   const hubs: Point[] = [];
@@ -167,7 +208,18 @@ export function trimCurvesLikeDrawing(
     const curve = curves[c];
     if (curve.length < 2) continue;
 
-    const trimmed = trimCurveAtFirstCrossing(curve, drawn, hubs, exclusionRadius);
+    let trimmed = trimCurveAtFirstCrossing(curve, drawn, hubs, exclusionRadius);
+    const trimmedByCrossing = wasCurveTrimmed(curve, trimmed);
+
+    if (!trimmedByCrossing && boundsHalf > 0) {
+      const extended = extendCurveToBoundary(trimmed, boundsHalf);
+      if (drawn.length > 0) {
+        trimmed = trimCurveAtFirstCrossing(extended, drawn, hubs, exclusionRadius);
+      } else {
+        trimmed = extended;
+      }
+    }
+
     if (trimmed.length < 2 || curveLength(trimmed) < minLength) continue;
 
     drawn.push(trimmed);

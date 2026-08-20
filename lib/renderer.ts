@@ -103,7 +103,9 @@ export function renderCurves(
 
   if (allGroups.length === 0) return;
 
-  const trimmedGroups = trimCurvesLikeDrawing(allGroups);
+  const spread = transform.spread ?? 1;
+  const boundsHalf = transform.type === "anchor_diverge" ? 1.15 * spread : 0;
+  const trimmedGroups = trimCurvesLikeDrawing(allGroups, undefined, 0.02, boundsHalf);
 
   if (trimmedGroups.length === 0) return;
 

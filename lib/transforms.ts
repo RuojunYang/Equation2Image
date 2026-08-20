@@ -394,7 +394,7 @@ export function anchorDiverge(
   anchors.forEach(([ax, ay], anchorIndex) => {
     const space = computeSpaceAt(ax, ay, spread);
     const crowd = crowdFactor(ax, ay, anchorIndex, anchors, minAnchorSpacing, spread);
-    const lengthScale = (0.15 + space * 1.1) * spread * crowd;
+    const lengthScale = (0.35 + space * 0.25) * spread;
     const rayCount = Math.max(1, Math.min(raysPerAnchor, Math.ceil(raysPerAnchor * crowd)));
     const angles = computeRayAngles(
       ax,
