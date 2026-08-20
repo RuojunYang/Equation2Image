@@ -23,6 +23,27 @@ export interface SampledCurve {
 const MAX_EXPR_LENGTH = 500;
 const Y_THRESHOLD = 100;
 
+/** Map common variable names to the active mode's variable. */
+function normalizeExpression(expr: string, variable: string): string {
+  let normalized = expr.trim();
+
+  if (variable === "theta") {
+    normalized = normalized.replace(/\bx\b/g, "theta");
+    normalized = normalized.replace(/θ/g, "theta");
+  } else if (variable === "x") {
+    normalized = normalized.replace(/\btheta\b/g, "x");
+    normalized = normalized.replace(/θ/g, "x");
+  } else if (variable === "t") {
+    normalized = normalized.replace(/\bx\b/g, "t");
+    normalized = normalized.replace(/\btheta\b/g, "t");
+  }
+
+  // math.js uses ^ for power; accept ** from users
+  normalized = normalized.replace(/\*\*/g, "^");
+
+  return normalized;
+}
+
 function validateExpression(expr: string): string | null {
   if (!expr.trim()) return "Expression cannot be empty";
   if (expr.length > MAX_EXPR_LENGTH) return "Expression is too long";
@@ -37,11 +58,16 @@ export function compileFunction(
   if (validationError) return { error: validationError };
 
   try {
-    const node = math.parse(expr);
+    const normalized = normalizeExpression(expr, variable);
+    const node = math.parse(normalized);
     const code = node.compile();
     return (value: number) => {
-      const result = code.evaluate({ [variable]: value, pi: Math.PI, e: Math.E });
-      return typeof result === "number" && Number.isFinite(result) ? result : NaN;
+      try {
+        const result = code.evaluate({ [variable]: value });
+        return typeof result === "number" && Number.isFinite(result) ? result : NaN;
+      } catch {
+        return NaN;
+      }
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Invalid expression" };
@@ -77,11 +103,12 @@ export function sampleCurve(config: FunctionConfig): SampledCurve {
         lastValid = false;
       }
     }
-    return { points };
+    return { points, error: points.length === 0 ? "No valid points — check expression and range" : undefined };
   }
 
   if (mode === "polar") {
-    const fn = compileFunction(expr, variable === "x" ? "theta" : variable);
+    const polarVar = variable === "x" ? "theta" : variable;
+    const fn = compileFunction(expr, polarVar);
     if ("error" in fn) return { points: [], error: fn.error };
 
     let lastValid = false;
@@ -97,7 +124,10 @@ export function sampleCurve(config: FunctionConfig): SampledCurve {
         lastValid = false;
       }
     }
-    return { points };
+    return {
+      points,
+      error: points.length === 0 ? "No valid points — check expression and range" : undefined,
+    };
   }
 
   // parametric
@@ -118,7 +148,10 @@ export function sampleCurve(config: FunctionConfig): SampledCurve {
       lastValid = false;
     }
   }
-  return { points };
+  return {
+    points,
+    error: points.length === 0 ? "No valid points — check expression and range" : undefined,
+  };
 }
 
 export function sampleMultipleCurves(
