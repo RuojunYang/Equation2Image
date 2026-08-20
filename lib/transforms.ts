@@ -40,6 +40,24 @@ export function rotatePoints(points: Point[], angleDeg: number): Point[] {
   return points.map(([x, y]) => [x * cos - y * sin, x * sin + y * cos] as Point);
 }
 
+export function radialRepeat(points: Point[], count: number): Point[][] {
+  return Array.from({ length: count }, (_, i) =>
+    rotatePoints(points, (360 / count) * i)
+  );
+}
+
+export function mirrorComposeHorizontal(points: Point[]): Point[][] {
+  return [points, mirrorHorizontal(points)];
+}
+
+export function mirrorComposeVertical(points: Point[]): Point[][] {
+  return [points, mirrorVertical(points)];
+}
+
+export function mirrorComposeBoth(points: Point[]): Point[][] {
+  return [points, mirrorHorizontal(points), mirrorVertical(points), mirrorBoth(points)];
+}
+
 export function kaleidoscope(points: Point[], segments: number): Point[][] {
   const sectorAngle = (2 * Math.PI) / segments;
   const result: Point[][] = [];
@@ -91,37 +109,37 @@ export function domainWarpPoints(
 export function applyTransform(
   points: Point[],
   config: TransformConfig
-): Point[] | Point[][] {
+): Point[][] {
   switch (config.type) {
     case "mirror_h":
-      return mirrorHorizontal(points);
+      return mirrorComposeHorizontal(points);
     case "mirror_v":
-      return mirrorVertical(points);
+      return mirrorComposeVertical(points);
     case "mirror_both":
-      return mirrorBoth(points);
+      return mirrorComposeBoth(points);
     case "rotate":
-      return rotatePoints(points, config.angle ?? 45);
+      return radialRepeat(points, config.segments ?? 8);
     case "kaleidoscope":
       return kaleidoscope(points, config.segments ?? 6);
     case "radial_warp":
-      return radialWarp(points, config.center ?? [0, 0]);
+      return [points, radialWarp(points, config.center ?? [0, 0])];
     case "domain_warp":
-      return domainWarpPoints(points, config.warpStrength ?? 1);
+      return [points, domainWarpPoints(points, config.warpStrength ?? 1)];
     case "multi_overlay":
     case "spiral":
     case "none":
     default:
-      return points;
+      return [points];
   }
 }
 
 export function getTransformLabel(type: TransformType): string {
   const labels: Record<TransformType, string> = {
-    none: "无变换",
-    mirror_h: "水平镜像",
-    mirror_v: "垂直镜像",
-    mirror_both: "中心对称",
-    rotate: "旋转",
+    none: "仅单线",
+    mirror_h: "原曲线 + 水平镜像",
+    mirror_v: "原曲线 + 垂直镜像",
+    mirror_both: "原曲线 + 四向对称",
+    rotate: "旋转重复",
     kaleidoscope: "万花筒",
     multi_overlay: "多曲线叠加",
     radial_warp: "径向扭曲",
@@ -132,13 +150,13 @@ export function getTransformLabel(type: TransformType): string {
 }
 
 export const TRANSFORM_OPTIONS: TransformType[] = [
-  "none",
+  "kaleidoscope",
+  "rotate",
   "mirror_h",
   "mirror_v",
   "mirror_both",
-  "rotate",
-  "kaleidoscope",
   "multi_overlay",
   "radial_warp",
   "domain_warp",
+  "none",
 ];

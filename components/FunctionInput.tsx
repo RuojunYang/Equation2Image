@@ -20,7 +20,11 @@ export default function FunctionInput({ state, onChange, error }: FunctionInputP
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-zinc-100">函数输入</h2>
-        <p className="text-sm text-zinc-400 mt-1">输入数学表达式，实时生成线条草图</p>
+        <p className="text-sm text-zinc-400 mt-1">
+          {state.mode === "cartesian"
+            ? "输入 f(x)，曲线将经变换组合成图案（非单条函数图像）"
+            : "输入数学表达式，实时生成线条草图"}
+        </p>
       </div>
 
       <div>

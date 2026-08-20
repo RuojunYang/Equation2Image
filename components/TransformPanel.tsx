@@ -9,7 +9,7 @@ interface TransformPanelProps {
 }
 
 export default function TransformPanel({ state, onChange }: TransformPanelProps) {
-  const showAngle = state.transform === "rotate";
+  const showRepeatCount = state.transform === "rotate";
   const showSegments = state.transform === "kaleidoscope";
   const showOverlay = state.transform === "multi_overlay";
   const showWarp = state.transform === "domain_warp";
@@ -18,11 +18,13 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-zinc-100">变换控制</h2>
-        <p className="text-sm text-zinc-400 mt-1">线条始终来自同一函数，变换只改变呈现方式</p>
+        <p className="text-sm text-zinc-400 mt-1">
+          同一函数通过变换叠加成完整图案，所有线条均来自 f(x)
+        </p>
       </div>
 
       <div>
-        <label className="block text-sm text-zinc-400 mb-2">变换模式</label>
+        <label className="block text-sm text-zinc-400 mb-2">组合模式</label>
         <div className="grid grid-cols-2 gap-2">
           {TRANSFORM_OPTIONS.map((type) => (
             <button
@@ -41,17 +43,17 @@ export default function TransformPanel({ state, onChange }: TransformPanelProps)
         </div>
       </div>
 
-      {showAngle && (
+      {showRepeatCount && (
         <div>
           <label className="block text-sm text-zinc-400 mb-1">
-            旋转角度: {state.angle}°
+            重复份数: {state.segments}
           </label>
           <input
             type="range"
-            min={0}
-            max={360}
-            value={state.angle}
-            onChange={(e) => onChange({ angle: parseInt(e.target.value, 10) })}
+            min={2}
+            max={12}
+            value={state.segments}
+            onChange={(e) => onChange({ segments: parseInt(e.target.value, 10) })}
             className="w-full"
           />
         </div>

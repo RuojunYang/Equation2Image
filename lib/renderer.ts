@@ -10,14 +10,6 @@ export interface RenderOptions {
   lineWidth?: number;
 }
 
-function isPointGroupArray(value: Point[] | Point[][]): value is Point[][] {
-  if (!Array.isArray(value) || value.length === 0) return false;
-  const first = value[0];
-  // Point[]: first = [x, y] → first[0] is number
-  // Point[][]: first = [[x,y], ...] → first[0] is array
-  return Array.isArray(first) && Array.isArray(first[0]);
-}
-
 function filterValidPoints(points: Point[]): Point[] {
   return points.filter(
     (p) =>
@@ -28,49 +20,20 @@ function filterValidPoints(points: Point[]): Point[] {
   );
 }
 
-function normalizePoints(allPoints: Point[]): {
-  normalized: Point[];
-  bounds: { minX: number; maxX: number; minY: number; maxY: number };
-} {
-  if (allPoints.length === 0) {
-    return {
-      normalized: [],
-      bounds: { minX: -1, maxX: 1, minY: -1, maxY: 1 },
-    };
-  }
-
-  const validPoints = filterValidPoints(allPoints);
-  if (validPoints.length === 0) {
-    return {
-      normalized: [],
-      bounds: { minX: -1, maxX: 1, minY: -1, maxY: 1 },
-    };
-  }
-
+function computeBounds(points: Point[]) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
 
-  for (const [x, y] of validPoints) {
+  for (const [x, y] of points) {
     minX = Math.min(minX, x);
     maxX = Math.max(maxX, x);
     minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
   }
 
-  const rangeX = maxX - minX || 1;
-  const rangeY = maxY - minY || 1;
-  const scale = 1.8 / Math.max(rangeX, rangeY);
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-
-  const normalized = validPoints.map(([x, y]) => [
-    (x - cx) * scale,
-    (y - cy) * scale,
-  ] as Point);
-
-  return { normalized, bounds: { minX, maxX, minY, maxY } };
+  return { minX, maxX, minY, maxY };
 }
 
 function toCanvasCoords(
@@ -127,35 +90,32 @@ export function renderCurves(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  const allGroups: Point[][] = [];
+
   for (const rawPoints of curveGroups) {
     if (rawPoints.length === 0) continue;
+    const groups = applyTransform(rawPoints, transform)
+      .map(filterValidPoints)
+      .filter((g) => g.length > 0);
+    allGroups.push(...groups);
+  }
 
-    const transformed = applyTransform(rawPoints, transform);
+  if (allGroups.length === 0) return;
 
-    if (isPointGroupArray(transformed)) {
-      const groups = transformed.map(filterValidPoints).filter((g) => g.length > 0);
-      if (groups.length === 0) continue;
+  const flat = allGroups.flat();
+  const bounds = computeBounds(flat);
+  const rangeX = bounds.maxX - bounds.minX || 1;
+  const rangeY = bounds.maxY - bounds.minY || 1;
+  const scale = 1.8 / Math.max(rangeX, rangeY);
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cy = (bounds.minY + bounds.maxY) / 2;
 
-      const flat = groups.flat();
-      const { bounds } = normalizePoints(flat);
-
-      const rangeX = bounds.maxX - bounds.minX || 1;
-      const rangeY = bounds.maxY - bounds.minY || 1;
-      const scale = 1.8 / Math.max(rangeX, rangeY);
-      const cx = (bounds.minX + bounds.maxX) / 2;
-      const cy = (bounds.minY + bounds.maxY) / 2;
-
-      for (const group of groups) {
-        const normGroup = group.map(([x, y]) => [
-          (x - cx) * scale,
-          (y - cy) * scale,
-        ] as Point);
-        drawPath(ctx, normGroup, size);
-      }
-    } else {
-      const { normalized } = normalizePoints(filterValidPoints(transformed));
-      drawPath(ctx, normalized, size);
-    }
+  for (const group of allGroups) {
+    const normGroup = group.map(([x, y]) => [
+      (x - cx) * scale,
+      (y - cy) * scale,
+    ] as Point);
+    drawPath(ctx, normGroup, size);
   }
 }
 

@@ -23,7 +23,7 @@ export const DEFAULT_STATE: AppState = {
   exprY: "sin(4*t)",
   tMin: -6.28,
   tMax: 6.28,
-  transform: "none",
+  transform: "kaleidoscope",
   angle: 45,
   segments: 6,
   overlayCount: 3,
